@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sgld_tf
 
 class CNN:
     def __init__(self,
@@ -22,7 +23,7 @@ class CNN:
         self.eval_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": test_data},
             y=test_labels,
-            num_epochs=1,
+            num_epochs=None,
             shuffle=False)
         self.optimize_method = optimize_method
         self.learning_rate = learning_rate
@@ -71,7 +72,7 @@ class CNN:
         loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
         # register layers with kfac:
-        if self.optimize_method == "kfac":
+        if self.optimize_method == "kfac" or self.optimize_method=="ksgld":
             layer_collection = tf.contrib.kfac.layer_collection.LayerCollection()
             layer_collection.register_conv2d((conv1.kernel, conv1.bias), (1, 1, 1, 1), "SAME", input_layer, conv1_pre)
             layer_collection.register_conv2d((conv2.kernel, conv2.bias), (1, 1, 1, 1), "SAME", pool1, conv2_pre)
@@ -91,6 +92,13 @@ class CNN:
                     layer_collection=layer_collection)
             elif self.optimize_method == "sgd":
                 optimizer = tf.train.GradientDescentOptimizer(
+                    learning_rate=self.learning_rate)
+            elif self.optimize_method == "sgld":
+                optimizer = sgld_tf.SGLD(learning_rate=self.learning_rate)
+            elif self.optimize_method == "psgld":
+                optimizer = sgld_tf.pSGLD(learning_rate=self.learning_rate)
+            elif self.optimize_method == "ksgld":
+                optimizer = sgld_tf.kSGLDOpt(
                     learning_rate=self.learning_rate)
 
             train_op = optimizer.minimize(

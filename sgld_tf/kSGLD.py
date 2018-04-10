@@ -9,12 +9,13 @@ from tensorflow.python.training import optimizer
 import tensorflow as tf
 
 
-class pSGLD(optimizer.Optimizer):
+
+class kSGLDOpt(optimizer.Optimizer):
     """Implementation of SGLD.
     """
     def __init__(self, learning_rate=0.001,decay=0.9, epsilon=1e-10,
-                 use_locking=False, name="pSGLD"):
-        super(pSGLD, self).__init__(use_locking, name)
+                 use_locking=False, name="kSGLDOpt"):
+        super(kSGLDOpt, self).__init__(use_locking, name)
         self._lr = learning_rate
         self._decay = decay
         self._epsilon = epsilon
@@ -23,6 +24,40 @@ class pSGLD(optimizer.Optimizer):
         self._lr_t = None
         self._decay_t = None
         self._epsilon_t = None
+
+    def apply_gradients(self, grads_and_vars, global_step=None, name=None):
+        grads_and_vars = tuple(grads_and_vars)
+        converted_grads_and_vars = []
+        for g, v in grads_and_vars:
+            if g is not None:
+                g = ops.convert_to_tensor_or_indexed_slices(g)
+            p = optimizer._get_processor(v)
+            converted_grads_and_vars.append((g, v, p))
+        converted_grads_and_vars = tuple(converted_grads_and_vars)
+        var_list  = [v for g, v,_ in converted_grads_and_vars if g is not None]
+        with ops.control_dependencies(None):
+            self._create_slots([optimizer._get_variable_for(v) for v in var_list])
+        update_ops = []
+        with ops.name_scope(name, self._name) as name:
+            self._prepare()
+            for grad, var, processor in converted_grads_and_vars:
+                if grad is None:
+                    continue
+                scope_name = var.op.name
+                with ops.name_scope("update_" + scope_name), ops.colocate_with(var):
+                    update_ops.append(processor.update_op(self, grad))
+            if global_step is None:
+                apply_updates = self._finish(update_ops, name)
+            else:
+                with ops.control_dependencies([self._finish(update_ops, "update")]):
+                    with ops.colocate_with(global_step):
+                        apply_updates = state_ops.assign_add(global_step, 1, name=name)
+            if isinstance(apply_updates, ops.Tensor):
+                apply_updates = apply_updates.op
+            train_op = ops.get_collection_ref(ops.GraphKeys.TRAIN_OP)
+            if apply_updates not in train_op:
+                train_op.append(apply_updates)
+        return apply_updates
 
     def _prepare(self):
         self._lr_t = ops.convert_to_tensor(self._lr, name="learning_rate")
@@ -61,53 +96,4 @@ class pSGLD(optimizer.Optimizer):
 
     def _apply_sparse(self, grad, var):
         raise NotImplementedError("Sparse gradient updates are not supported.")
-
-
-
-class SGLD(optimizer.Optimizer):
-    """Implementation of SGLD.
-    """
-    def __init__(self, learning_rate=0.001,alpha=0.01,
-                 beta=0.5, use_locking=False, name="SGLD"):
-        super(SGLD, self).__init__(use_locking, name)
-        self._lr = learning_rate
-        self._alpha = alpha
-        self._beta = beta
-
-        # Tensor versions of the constructor arguments, created in _prepare().
-        self._lr_t = None
-        self._alpha_t = None
-        self._beta_t = None
-
-    def _prepare(self):
-        self._lr_t = ops.convert_to_tensor(self._lr, name="learning_rate")
-        self._alpha_t = ops.convert_to_tensor(self._beta, name="alpha_t")
-        self._beta_t = ops.convert_to_tensor(self._beta, name="beta_t")
-
-    def _create_slots(self, var_list):
-        # Create slots for the first and second moments.
-        for v in var_list:
-            self._zeros_slot(v, "m", self._name)
-
-    def _apply_dense(self, grad, var):
-        lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
-        beta_t = math_ops.cast(self._beta_t, var.dtype.base_dtype)
-
-        eps = 1e-7 #cap for moving average
-
-        m = self.get_slot(var, "m")
-        m_t = m.assign(tf.maximum(beta_t * m + eps, tf.abs(grad)))
-
-        var_update = state_ops.assign_sub(
-            var,lr_t*grad + lr_t*lr_t*tf.random_normal(shape=tf.shape(grad)))
-        # var_update = state_ops.assign_sub(
-        #      var,lr_t*grad)
-        #Update 'ref' by subtracting 'value
-        #Create an op that groups multiple operations.
-        #When this op finishes, all ops in input have finished
-        return control_flow_ops.group(*[var_update, m_t])
-
-    def _apply_sparse(self, grad, var):
-        raise NotImplementedError("Sparse gradient updates are not supported.")
-
 
