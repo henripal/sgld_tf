@@ -99,7 +99,8 @@ class CNN:
                 optimizer = sgld_tf.pSGLD(learning_rate=self.learning_rate)
             elif self.optimize_method == "ksgld":
                 optimizer = sgld_tf.kSGLDOpt(
-                    learning_rate=self.learning_rate)
+                    learning_rate=self.learning_rate,
+                decay=0.9, layer_collection = layer_collection)
 
             train_op = optimizer.minimize(
                 loss=loss,
