@@ -86,17 +86,18 @@ class SGLD(optimizer.Optimizer):
 
     def _create_slots(self, var_list):
         # Create slots for the first and second moments.
-        for v in var_list:
-            self._zeros_slot(v, "m", self._name)
+        # for v in var_list:
+        #     self._zeros_slot(v, "m", self._name)
+        pass
 
     def _apply_dense(self, grad, var):
         lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
-        beta_t = math_ops.cast(self._beta_t, var.dtype.base_dtype)
+        # beta_t = math_ops.cast(self._beta_t, var.dtype.base_dtype)
 
-        eps = 1e-7 #cap for moving average
+        # eps = 1e-7 #cap for moving average
 
-        m = self.get_slot(var, "m")
-        m_t = m.assign(tf.maximum(beta_t * m + eps, tf.abs(grad)))
+        # m = self.get_slot(var, "m")
+        # m_t = m.assign(tf.maximum(beta_t * m + eps, tf.abs(grad)))
 
         var_update = state_ops.assign_sub(
             var,lr_t*grad + lr_t*lr_t*tf.random_normal(shape=tf.shape(grad)))
@@ -105,7 +106,7 @@ class SGLD(optimizer.Optimizer):
         #Update 'ref' by subtracting 'value
         #Create an op that groups multiple operations.
         #When this op finishes, all ops in input have finished
-        return control_flow_ops.group(*[var_update, m_t])
+        return control_flow_ops.group(*[var_update])
 
     def _apply_sparse(self, grad, var):
         raise NotImplementedError("Sparse gradient updates are not supported.")

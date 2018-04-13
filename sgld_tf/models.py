@@ -11,9 +11,10 @@ class CNN:
                  optimize_method="sgd",
                  learning_rate=0.001,
                  shuffle=True,
+                 save_checkpoint_steps=None,
+                 keep_checkpoint_max=100,
+                 checkpoint_init = None,
                  bs=1024):
-        self.estimator = tf.estimator.Estimator(model_fn=self.model_fn,
-                                           model_dir=model_dir)
         self.train_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": train_data},
             y=train_labels,
@@ -23,10 +24,27 @@ class CNN:
         self.eval_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": test_data},
             y=test_labels,
+            batch_size=bs,
             num_epochs=None,
             shuffle=False)
         self.optimize_method = optimize_method
         self.learning_rate = learning_rate
+        self.checkpoint_init = checkpoint_init
+        self.bs = bs
+
+        if save_checkpoint_steps is not None:
+            self.estimator = tf.estimator.Estimator(
+                model_fn=self.model_fn,
+                model_dir=model_dir,
+                config=tf.estimator.RunConfig(
+                    save_checkpoints_steps=save_checkpoint_steps,
+                    keep_checkpoint_max=keep_checkpoint_max))
+        else:
+            self.estimator = tf.estimator.Estimator(
+                model_fn=self.model_fn,
+                model_dir=model_dir)
+
+
 
     def make_conv_layer(self, n_filters, kernel_size, inputs, padding="same"):
         conv = tf.layers.Conv2D(filters=n_filters,
@@ -63,8 +81,13 @@ class CNN:
           "classes": tf.argmax(input=logits, axis=1),
           # Add `softmax_tensor` to the graph. It is used for PREDICT and by the
           # `logging_hook`.
-          "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
+            "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
         }
+
+        if self.checkpoint_init:
+            collection = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            assignment = {v.name.split(':')[0]: v for v in collection}
+            tf.train.init_from_checkpoint(self.checkpoint_init, assignment)
 
         if mode == tf.estimator.ModeKeys.PREDICT:
             return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
@@ -114,3 +137,4 @@ class CNN:
             return tf.estimator.EstimatorSpec(mode=mode,
                                               loss=loss,
                                               eval_metric_ops=eval_metric_ops)
+

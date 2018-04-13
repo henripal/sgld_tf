@@ -7,13 +7,14 @@ from tensorflow.python.framework import ops
 from tensorflow.python.training import optimizer
 from tensorflow.contrib.kfac.python.ops import estimator as est
 from tensorflow.python.ops import variables as tf_variables
+import tensorflow as tf
 
 
 class kSGLDOpt(optimizer.Optimizer):
     """Implementation of SGLD.
     """
     def __init__(self, learning_rate=0.001,decay=0.9, epsilon=1e-10,
-                 damping = 0.9, cov_ema_decay=0.9,
+                 damping = 0.001, cov_ema_decay=0.95,
                  layer_collection = None, estimation_mode = 'gradients',
                  colocate_gradient_with_ops = True,
                  use_locking=False, name="kSGLDOpt"):
@@ -90,9 +91,11 @@ class kSGLDOpt(optimizer.Optimizer):
         noise_and_vars = []
         for grad, var in grads_and_vars:
             noise = self.get_slot(var, "noise" )
-            noise_and_vars.append((noise, var))
+            noise_t = noise.assign(tf.random_normal(shape=tf.shape(noise)))
+            noise_and_vars.append((noise_t, var))
 
         preconditioned_noise_and_vars = self._fisher_est.multiply_inverse(noise_and_vars)
+        # preconditioned_noise_and_vars = noise_and_vars
 
         for (grad, var), (pnoise, _) in zip(grads_and_vars, preconditioned_noise_and_vars):
             if grad is None:
@@ -101,7 +104,7 @@ class kSGLDOpt(optimizer.Optimizer):
             with ops.name_scope("update_" + scope_name), ops.colocate_with(var):
                 lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
                 var_update = state_ops.assign_sub(var, lr_t*grad - lr_t * lr_t * pnoise)
-                update_ops.append(control_flow_ops.group(*[var_update]))
+                update_ops.append(control_flow_ops.group(*[var_update, pnoise]))
         # decay_t = math_ops.cast(self._decay_t, var.dtype.base_dtype)
         # epsilon_t = math_ops.cast(self._epsilon_t, var.dtype.base_dtype)
 
