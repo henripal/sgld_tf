@@ -12,11 +12,15 @@ import tensorflow as tf
 class pSGLD(optimizer.Optimizer):
     """Implementation of SGLD.
     """
-    def __init__(self, learning_rate=0.001,decay=0.9, epsilon=1e-10,
+    def __init__(self, learning_rate=0.001,decay=0.96, epsilon=1e-10,
+                 lrdecay=.96,
+                 decay_interval=50,
                  use_locking=False, name="pSGLD"):
         super(pSGLD, self).__init__(use_locking, name)
         self._lr = learning_rate
         self._decay = decay
+        self._lrdecay = lrdecay
+        self._decay_interval = decay_interval
         self._epsilon = epsilon
 
         # Tensor versions of the constructor arguments, created in _prepare().
@@ -41,8 +45,11 @@ class pSGLD(optimizer.Optimizer):
                                                 self._name)
 
     def _apply_dense(self, grad, var):
-        lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
+        lr_t0 = math_ops.cast(self._lr_t, var.dtype.base_dtype)
         decay_t = math_ops.cast(self._decay_t, var.dtype.base_dtype)
+        lr_t = tf.train.exponential_decay(lr_t0, tf.train.get_global_step(),
+                                          self._decay_interval, self._lrdecay)
+        print(lr_t)
         epsilon_t = math_ops.cast(self._epsilon_t, var.dtype.base_dtype)
 
 
@@ -68,8 +75,11 @@ class SGLD(optimizer.Optimizer):
     """Implementation of SGLD.
     """
     def __init__(self, learning_rate=0.001,alpha=0.01,
+                 lrdecay=.96, decay_interval=50,
                  beta=0.5, use_locking=False, name="SGLD"):
         super(SGLD, self).__init__(use_locking, name)
+        self._lrdecay = lrdecay
+        self._decay_interval=decay_interval
         self._lr = learning_rate
         self._alpha = alpha
         self._beta = beta
@@ -91,7 +101,9 @@ class SGLD(optimizer.Optimizer):
         pass
 
     def _apply_dense(self, grad, var):
-        lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
+        lr_t0 = math_ops.cast(self._lr_t, var.dtype.base_dtype)
+        lr_t = tf.train.exponential_decay(lr_t0, tf.train.get_global_step(),
+                                          self._decay_interval, self._lrdecay)
         # beta_t = math_ops.cast(self._beta_t, var.dtype.base_dtype)
 
         # eps = 1e-7 #cap for moving average

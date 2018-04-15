@@ -10,11 +10,15 @@ class CNN:
                  model_dir="/tmp/tf/",
                  optimize_method="sgd",
                  learning_rate=0.001,
+                 decay=.96,
+                 decay_interval=50,
                  shuffle=True,
                  save_checkpoint_steps=None,
                  keep_checkpoint_max=100,
                  checkpoint_init = None,
                  bs=1024):
+        self.lrdecay=decay
+        self.decay_interval = decay_interval
         self.train_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": train_data},
             y=train_labels,
@@ -117,11 +121,20 @@ class CNN:
                 optimizer = tf.train.GradientDescentOptimizer(
                     learning_rate=self.learning_rate)
             elif self.optimize_method == "sgld":
-                optimizer = sgld_tf.SGLD(learning_rate=self.learning_rate)
+                optimizer = sgld_tf.SGLD(
+                    lrdecay=self.lrdecay,
+                    decay_interval=self.decay_interval,
+                    learning_rate=self.learning_rate)
             elif self.optimize_method == "psgld":
-                optimizer = sgld_tf.pSGLD(learning_rate=self.learning_rate)
+                optimizer = sgld_tf.pSGLD(
+                    learning_rate=self.learning_rate,
+                    lrdecay=self.lrdecay,
+                    decay_interval=self.decay_interval
+                )
             elif self.optimize_method == "ksgld":
                 optimizer = sgld_tf.kSGLDOpt(
+                    lrdecay=self.lrdecay,
+                    decay_interval=self.decay_interval,
                     learning_rate=self.learning_rate,
                 decay=0.9, layer_collection = layer_collection)
 

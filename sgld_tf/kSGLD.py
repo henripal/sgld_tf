@@ -15,6 +15,7 @@ class kSGLDOpt(optimizer.Optimizer):
     """
     def __init__(self, learning_rate=0.001,decay=0.9, epsilon=1e-10,
                  damping = 0.001, cov_ema_decay=0.95,
+                 lrdecay = 0.96, decay_interval=50,
                  layer_collection = None, estimation_mode = 'gradients',
                  colocate_gradient_with_ops = True,
                  use_locking=False, name="kSGLDOpt"):
@@ -22,6 +23,8 @@ class kSGLDOpt(optimizer.Optimizer):
         self._lr = learning_rate
         self._decay = decay
         self._epsilon = epsilon
+        self._lrdecay=lrdecay
+        self._decay_interval = decay_interval
 
         self._variables = tf_variables.trainable_variables()
         self.damping_fn = lambda: damping
@@ -102,7 +105,9 @@ class kSGLDOpt(optimizer.Optimizer):
                 continue
             scope_name = var.op.name
             with ops.name_scope("update_" + scope_name), ops.colocate_with(var):
-                lr_t = math_ops.cast(self._lr_t, var.dtype.base_dtype)
+                lr_t0 = math_ops.cast(self._lr_t, var.dtype.base_dtype)
+                lr_t = tf.train.exponential_decay(lr_t0, tf.train.get_global_step(),
+                                                self._decay_interval, self._lrdecay)
                 var_update = state_ops.assign_sub(var, lr_t*grad - lr_t * lr_t * pnoise)
                 update_ops.append(control_flow_ops.group(*[var_update, pnoise]))
         # decay_t = math_ops.cast(self._decay_t, var.dtype.base_dtype)
