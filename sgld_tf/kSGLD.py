@@ -100,7 +100,8 @@ class kSGLDOpt(optimizer.Optimizer):
         preconditioned_noise_and_vars = self._fisher_est.multiply_inverse(noise_and_vars)
         # preconditioned_noise_and_vars = noise_and_vars
 
-        for (grad, var), (pnoise, _) in zip(grads_and_vars, preconditioned_noise_and_vars):
+        for (grad, var), (pnoise, _) in zip(grads_and_vars,
+                                            preconditioned_noise_and_vars):
             if grad is None:
                 continue
             scope_name = var.op.name
@@ -108,7 +109,7 @@ class kSGLDOpt(optimizer.Optimizer):
                 lr_t0 = math_ops.cast(self._lr_t, var.dtype.base_dtype)
                 lr_t = tf.train.exponential_decay(lr_t0, tf.train.get_global_step(),
                                                 self._decay_interval, self._lrdecay)
-                var_update = state_ops.assign_sub(var, lr_t*grad - lr_t * lr_t * pnoise)
+                var_update = state_ops.assign_sub(var, lr_t*grad/2 - lr_t * lr_t * pnoise)
                 update_ops.append(control_flow_ops.group(*[var_update, pnoise]))
         # decay_t = math_ops.cast(self._decay_t, var.dtype.base_dtype)
         # epsilon_t = math_ops.cast(self._epsilon_t, var.dtype.base_dtype)

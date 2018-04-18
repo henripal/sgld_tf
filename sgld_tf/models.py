@@ -99,7 +99,7 @@ class CNN:
         loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
         # register layers with kfac:
-        if self.optimize_method == "kfac" or self.optimize_method=="ksgld":
+        if self.optimize_method == "kfac" or self.optimize_method=="ksgld" or self.optimize_method=="tfkfac":
             layer_collection = tf.contrib.kfac.layer_collection.LayerCollection()
             layer_collection.register_conv2d((conv1.kernel, conv1.bias), (1, 1, 1, 1), "SAME", input_layer, conv1_pre)
             layer_collection.register_conv2d((conv2.kernel, conv2.bias), (1, 1, 1, 1), "SAME", pool1, conv2_pre)
@@ -114,12 +114,21 @@ class CNN:
             if self.optimize_method == "kfac":
                 optimizer = tf.contrib.kfac.optimizer.KfacOptimizer(
                     learning_rate=self.learning_rate,
-                    damping=0.0001,
+                    damping=0.001,
+                    cov_ema_decay=0.95,
+                    layer_collection=layer_collection)
+            elif self.optimize_method == "tfkfac":
+                optimizer = sgld_tf.KfacOptimizer(
+                    learning_rate=self.learning_rate,
+                    damping=0.001,
                     cov_ema_decay=0.95,
                     layer_collection=layer_collection)
             elif self.optimize_method == "sgd":
                 optimizer = tf.train.GradientDescentOptimizer(
-                    learning_rate=self.learning_rate)
+                    learning_rate=tf.train.exponential_decay(
+                        self.learning_rate,
+                        tf.train.get_global_step(),
+                        self.decay_interval, self.lrdecay))
             elif self.optimize_method == "sgld":
                 optimizer = sgld_tf.SGLD(
                     lrdecay=self.lrdecay,

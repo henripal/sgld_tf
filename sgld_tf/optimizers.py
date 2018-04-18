@@ -58,7 +58,7 @@ class pSGLD(optimizer.Optimizer):
             tf.sqrt(epsilon_t + decay_t * m + (1 - decay_t) * tf.square(grad)))
 
         var_update = state_ops.assign_sub(
-            var,lr_t*grad + lr_t*lr_t*tf.divide(tf.random_normal(shape=tf.shape(grad)), m))
+            var,lr_t*grad/2 + lr_t*lr_t*tf.divide(tf.random_normal(shape=tf.shape(grad)), m))
         # var_update = state_ops.assign_sub(
         #      var,lr_t*grad)
         #Update 'ref' by subtracting 'value
@@ -112,7 +112,7 @@ class SGLD(optimizer.Optimizer):
         # m_t = m.assign(tf.maximum(beta_t * m + eps, tf.abs(grad)))
 
         var_update = state_ops.assign_sub(
-            var,lr_t*grad + lr_t*lr_t*tf.random_normal(shape=tf.shape(grad)))
+            var,lr_t*grad/2 + lr_t*lr_t*tf.random_normal(shape=tf.shape(grad)))
         # var_update = state_ops.assign_sub(
         #      var,lr_t*grad)
         #Update 'ref' by subtracting 'value

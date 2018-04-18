@@ -2,6 +2,9 @@ import os
 import numpy as np
 import sgld_tf
 from tensorflow.python import pywrap_tensorflow
+from multiprocessing import Pool
+
+import statsmodels.tsa.stattools as st
 
 def ordered_chkpoints_from_dir(directory):
 	ckpt_set = {'.'.join(fn.split('.')[:2]) for fn in os.listdir(directory) if fn[:3] == 'mod'}
@@ -86,3 +89,33 @@ def analyze_directory(directory, stdev_n_from_last=100, delta=20):
 
     return histo, stdevs
 
+def mess_correl(data):
+    n, p = data.shape
+    data = data.T
+    pool = Pool(16)
+    ess = pool.map(univess, [row for row in data])
+
+    ess = np.array(ess)
+    isf = np.isfinite(ess)
+    print("percentage of finite: ", np.mean(isf))
+    ess = ess[np.isfinite(ess)]
+
+    return np.min(ess), np.exp(np.mean(np.log(ess)))
+
+def univess(ts):
+    acf = st.acf(ts, nlags=20)
+    ind = np.argmax(acf < 0)
+    if ind == 0: ind = len(acf)
+    sum_acf = np.sum(acf[1:ind])
+    return len(ts) / (1+2*sum_acf)
+
+def split_mess(data, n_splits, n_size):
+    results = []
+    for i in range(n_splits):
+        print("split: ", i)
+        split_data = data[i*n_size:(i+1)*n_size]
+        result = mess_correl(split_data)
+        print(result)
+        results.append(result)
+
+    return results
