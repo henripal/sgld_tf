@@ -68,7 +68,6 @@ def bayes_evaluate(files, root, sess, batch_size, X_test, Y_test, x, y, preds,
     preds_acc = []
     saver = tf.train.Saver()
 
-
     for model_file in files:
         saver.restore(sess, root + model_file)
         acc, pre, lab = sgld_tf.evaluate(sess, batch_size, X_test, Y_test, x, y, preds)
@@ -90,6 +89,30 @@ def bayes_evaluate(files, root, sess, batch_size, X_test, Y_test, x, y, preds,
     return final_acc
 
 
+def bayes_uncertainty(files, root, sess, batch_size, X_test, Y_test, x, y, preds,
+                   dunno = False):
+    preds_acc = []
+    saver = tf.train.Saver()
+
+
+    for model_file in files:
+        saver.restore(sess, root + model_file)
+        acc, pre, lab = sgld_tf.evaluate(sess, batch_size, X_test, Y_test, x, y, preds)
+        preds_acc.append(pre)
+
+    final_preds = np.zeros_like(preds_acc[0])
+    for pred in preds_acc:
+        final_preds += pred
+
+    if dunno:
+        dunno_filter = np.max(final_preds, axis=1)/len(files) > dunno
+        print('dunno percent ', np.mean(dunno_filter))
+        final_acc = np.mean(np.argmax(final_preds, axis=1)[dunno_filter] == np.argmax(lab, axis=1)[dunno_filter])
+
+        return final_acc
+
+
+    return final_preds/len(files)
 
 def evaluate(sess, batch_size, X_test, Y_test, x, y, preds):
     nb_batches_eval = int(math.ceil(float(len(X_test)) / batch_size))
@@ -188,6 +211,7 @@ class CNN(Model):
         self.layer_collection.register_fully_connected((self.dense1.kernel, self.dense1.bias), pool2_flat, dense_pre)
         self.layer_collection.register_fully_connected((self.dense2.kernel, self.dense2.bias), dense_out, logits)
         self.layer_collection.register_categorical_predictive_distribution(logits, name="logits")
+
 
         return {'reshape': reshaped_input,
                'conv1': conv1_out,
